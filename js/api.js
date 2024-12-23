@@ -7,7 +7,7 @@ import "firebase/storage";
 import "firebase/functions";
 
 window.firebase = firebase;
-
+// 这段代码初始化了一个 Firebase 应用，并使用了身份验证、存储和云函数等服务
 firebase.initializeApp({
   apiKey: "AIzaSyD2APPEyxCi9vB2olvUgzSsbgH1Pyz-as0",
   storageBucket: "sandtable-8d0f7.appspot.com",
@@ -20,6 +20,6 @@ firebase.initializeApp({
 const storage = firebase.storage();
 const functions = firebase.functions();
 
-// functions.useEmulator("localhost", 5001);
+functions.useEmulator("localhost", 5001);
 
 export { functions, storage };
