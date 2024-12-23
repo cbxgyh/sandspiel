@@ -752,6 +752,7 @@ pub fn update_wood(cell: Cell, mut api: SandApi) {
         );
     }
 }
+// 你的代码用于模拟冰（Ice）的行为，主要涉及冰与火、岩浆、水等物质的互动。代码的逻辑比较清晰
 pub fn update_ice(cell: Cell, mut api: SandApi) {
     let (dx, dy) = api.rand_vec();
 
@@ -759,6 +760,7 @@ pub fn update_ice(cell: Cell, mut api: SandApi) {
 
     let fluid = api.get_fluid();
 
+    // // 如果流体压力大于120且有一定概率，冰会变成水
     if fluid.pressure > 120 && api.rand_int(1) == 0 {
         api.set(
             0,
@@ -774,6 +776,7 @@ pub fn update_ice(cell: Cell, mut api: SandApi) {
     }
 
     let nbr_species = api.get(dx, dy).species;
+    // // 如果邻居是火或岩浆，冰会变成水
     if nbr_species == Species::Fire || nbr_species == Species::Lava {
         api.set(
             0,
@@ -786,6 +789,7 @@ pub fn update_ice(cell: Cell, mut api: SandApi) {
             },
         );
     } else if nbr_species == Species::Water && i < 7 {
+        // 如果邻居是水且随机条件成立，冰会变成冰块
         api.set(
             dx,
             dy,
@@ -799,7 +803,14 @@ pub fn update_ice(cell: Cell, mut api: SandApi) {
     }
 }
 
+
+// 涉及两种不同物质（植物 Plant 和种子 Seed）的行为逻辑
+
+// 该函数描述了植物（Plant）的生长和互动行为，主要操作包括扩散、繁殖、腐蚀、与其他物质互动等。
 pub fn update_plant(cell: Cell, mut api: SandApi) {
+
+    // 植物与火焰或岩浆的交互：
+    // 如果植物周围有火焰（Fire）或岩浆（Lava），并且植物的rb为0，它会变成一个新的植物，ra保持不变，rb设置为20（表示一些生长状态）。
     let rb = cell.rb;
 
     let mut i = api.rand_int(100);
@@ -818,6 +829,9 @@ pub fn update_plant(cell: Cell, mut api: SandApi) {
             },
         );
     }
+
+    // 2 与木材的交互：
+    // 如果植物旁边有木材（Wood），它会随机选择一个邻居位置（dx, dy），并将植物繁殖到这个空白位置。
     if nbr_species == Species::Wood {
         let (dx, dy) = api.rand_vec();
 
@@ -836,6 +850,9 @@ pub fn update_plant(cell: Cell, mut api: SandApi) {
             );
         }
     }
+    // 3 与水或真菌的交互：
+    //
+    // 如果植物旁边有水（Water）或真菌（Fungus），并且与相邻位置进行某种条件匹配，植物会随机选择一个邻居并繁殖到该位置，同时移除另一个方向上的植物。
     if api.rand_int(100) > 80
         && (nbr_species == Species::Water
             || nbr_species == Species::Fungus
@@ -857,7 +874,10 @@ pub fn update_plant(cell: Cell, mut api: SandApi) {
         );
         api.set(-dx, dy, EMPTY_CELL);
     }
-
+    // 4 植物的生命周期：
+    //
+    // 如果植物的rb大于1，它会减少rb并产生火焰（Fire）或者将植物的ra调整为50，如果附近是水。
+    // 如果rb为1，植物会被清除（设置为空）。
     if rb > 1 {
         api.set(
             0,
@@ -896,6 +916,10 @@ pub fn update_plant(cell: Cell, mut api: SandApi) {
     } else if rb == 1 {
         api.set(0, 0, EMPTY_CELL);
     }
+
+    //  5 植物繁殖：
+    //
+    // 如果植物的ra大于50，并且在某个条件下没有相邻的植物，植物会在上方繁殖。
     let ra = cell.ra;
     if ra > 50
         && api.get(1, 1).species != Species::Plant
@@ -927,7 +951,11 @@ pub fn update_plant(cell: Cell, mut api: SandApi) {
     }
 }
 
+// 描述了种子（Seed）的行为逻辑。它实现了种子从空中掉落、与周围物质的互动以及生长和扩展等行为。
 pub fn update_seed(cell: Cell, mut api: SandApi) {
+    // 1 火焰与岩浆的处理：
+    //
+    // 如果种子附近有火焰（Fire）或岩浆（Lava），种子会变为火焰（Fire），并且其属性被设置为 ra: 5，rb: 0。
     let rb = cell.rb;
     let ra = cell.ra;
 
@@ -948,6 +976,12 @@ pub fn update_seed(cell: Cell, mut api: SandApi) {
         return;
     }
 
+    // 2 种子掉落逻辑：
+    //
+    // 如果种子正在掉落（rb == 0），它会根据周围的环境进行调整：
+    // 如果种子下面是沙子（Sand）、植物（Plant）或真菌（Fungus），它会停止掉落并生成一个新的生命值（rb）。
+    // 如果种子落在空白位置，种子会继续掉落到下方。
+    // 如果种子下方是水（Water）、气体（Gas）、油（Oil）或酸（Acid），种子会与之互动并继续下落。
     if rb == 0 {
         //falling
 
@@ -980,6 +1014,11 @@ pub fn update_seed(cell: Cell, mut api: SandApi) {
             api.set(0, 0, cell);
         }
     } else {
+
+        // 3 种子生长为茎（stem）：
+        //
+        // 如果种子的腐蚀度（ra）大于 60，种子有可能向上生成茎（stem）。
+        // 如果上方的某个位置为空白、沙子或者是其他种子，且两侧位置没有植物，种子会生成茎并逐步变成植物。
         if ra > 60 {
             //stem
             let dxr = api.rand_dir(); //raising dx
@@ -1008,6 +1047,10 @@ pub fn update_seed(cell: Cell, mut api: SandApi) {
                 }
             }
         } else {
+            // 4 种子生成花瓣（petals）：
+            //
+            // 如果腐蚀度（ra）小于 60，但大于 40，种子有可能在邻近位置生成花瓣。
+            // 这个过程通过对周围空白区域或植物位置的检查来决定是否生成新的花瓣。
             if ra > 40 {
                 //petals
 
@@ -1035,6 +1078,10 @@ pub fn update_seed(cell: Cell, mut api: SandApi) {
                     }
                 }
             } else {
+
+                // 5 与水的互动：
+                //
+                // 如果种子附近是水（Water），种子会转变为新的一颗种子（Species::Seed）。
                 if nbr_species == Species::Water {
                     api.set(dx, dy, Cell::new(Species::Seed))
                 }
@@ -1043,12 +1090,23 @@ pub fn update_seed(cell: Cell, mut api: SandApi) {
     }
 }
 
+// 这段代码实现了一个类似“真菌”物质的行为逻辑，真菌在周围的环境中扩散、生长、腐蚀或转化。
 pub fn update_fungus(cell: Cell, mut api: SandApi) {
+    // 1 初始化：
+    //
+    // let rb = cell.rb;：读取当前真菌细胞的生命值 rb。
+    // let (dx, dy) = api.rand_vec();：生成一个随机的方向向量（dx 和 dy），用于决定真菌的扩散方向。
+    // let nbr_species = api.get(dx, dy).species;：获取相邻单元格的物质种类。
     let rb = cell.rb;
 
     let (dx, dy) = api.rand_vec();
 
     let nbr_species = api.get(dx, dy).species;
+
+    // 2 火焰与岩浆扩散：
+    //
+    // 如果当前 rb == 0 且相邻的单元格是火焰（Fire）或岩浆（Lava），则创建一个新的真菌并将其放置在当前位置。
+    // api.set(0, 0, Cell {...})：将当前位置的细胞替换为新的真菌细胞。
     if rb == 0 && nbr_species == Species::Fire || nbr_species == Species::Lava {
         api.set(
             0,
@@ -1061,16 +1119,26 @@ pub fn update_fungus(cell: Cell, mut api: SandApi) {
             },
         );
     }
-    let mut i = api.rand_int(100);
 
+    // 3 随机扩散：
+    //
+    // let mut i = api.rand_int(100);：生成一个随机值，用于确定真菌是否扩散。
+
+    let mut i = api.rand_int(100);
+    //  // 如果相邻单元格不是空的 (Species::Empty)，也不是真菌 (Species::Fungus)、
+    // 火焰 (Species::Fire) 或冰 (Species::Ice)，则真菌尝试扩散到一个空的邻近单元格。
+    //
     if nbr_species != Species::Empty
         && nbr_species != Species::Fungus
         && nbr_species != Species::Fire
         && nbr_species != Species::Ice
     {
+
         let (dx, dy) = api.rand_vec();
 
         let drift = (i % 15) - 7;
+
+        //  // 真菌的腐蚀程度 ra 会增加或减少，生成新的 ra 值并将其放置到新的位置。
         let newra = (cell.ra as i32 + drift) as u8;
         if api.get(dx, dy).species == Species::Empty {
             api.set(
@@ -1086,6 +1154,10 @@ pub fn update_fungus(cell: Cell, mut api: SandApi) {
         }
     }
 
+    // 4 真菌与木材的相互作用：
+    //
+    // 如果相邻单元格是木材（Species::Wood），且满足一定条件（例如相邻木材不在真菌的影响范围内），
+    // 真菌会扩散到相邻的木材单元格。
     if i > 9
         && nbr_species == Species::Wood
         && api.get(-dx, dy).species == Species::Wood
@@ -1105,7 +1177,10 @@ pub fn update_fungus(cell: Cell, mut api: SandApi) {
             },
         );
     }
-
+    // 5 生命值 (rb) 管理：
+    //
+    // 如果 rb > 1，真菌会减少其生命值（rb）并检查周围是否为空或水等物质。如果为空，生成火种（Species::Fire）；如果是水，则改变真菌的状态。
+    // 如果 rb == 1，真菌将消失（设置为 EMPTY_CELL）。
     if rb > 1 {
         api.set(
             0,
@@ -1140,12 +1215,17 @@ pub fn update_fungus(cell: Cell, mut api: SandApi) {
                 },
             )
         }
+    //     如果 rb == 1，真菌将消失（设置为 EMPTY_CELL）。
     } else if rb == 1 {
         api.set(0, 0, EMPTY_CELL);
     }
 
     let ra = cell.ra;
 
+    // 6  高级扩散：
+    //
+    // 如果真菌的腐蚀程度 ra 大于 120，真菌会尝试在一个新的随机位置扩散，并且该位置必须满足一系列条件（例如不与其他真菌接触）。
+    // 如果满足条件，真菌会扩散并且腐蚀程度会减少。
     if ra > 120 {
         let (mdx, mdy) = api.rand_vec();
 
@@ -1171,9 +1251,19 @@ pub fn update_fungus(cell: Cell, mut api: SandApi) {
     }
 }
 
+// 这段代码实现了酸（Acid）物质的行为逻辑，根据不同的条件酸会向周围扩散、腐蚀或退化。代码通过检查周围单元格的物质种类来决定酸的移动或变更。
 pub fn update_acid(cell: Cell, mut api: SandApi) {
+    // 1.方向控制：
+    //
+    // let dx = api.rand_dir(); 随机决定一个方向，dx 代表水平方向的移动量（可以是 1 或 -1）
     let dx = api.rand_dir();
 
+    //2. 酸的退化：
+    //
+    // let ra = cell.ra; 获取当前酸的腐蚀程度。
+    // let mut degraded = cell.clone(); 创建酸的副本。
+    // degraded.ra = ra - 60; 酸的腐蚀程度减少 60，表示酸的退化。
+    // 如果酸的腐蚀程度小于 80（degraded.ra < 80），则酸会消失（设置为空单元格 EMPTY_CELL）。
     let ra = cell.ra;
     let mut degraded = cell.clone();
     degraded.ra = ra - 60;
@@ -1181,16 +1271,27 @@ pub fn update_acid(cell: Cell, mut api: SandApi) {
     if degraded.ra < 80 {
         degraded = EMPTY_CELL;
     }
+
+    // 3.酸的扩散：
+    //
+    // 通过检查四个方向（上、右、左、下）的相邻单元格，酸决定是否扩散到这些空白区域或腐蚀周围的物质。
+    // 优先向下移动（api.get(0, 1)），如果下方为空，则酸向下扩散。
+    // 如果下方不是空单元格，尝试向右（api.get(dx, 0)）或向左（api.get(-dx, 0)）移动。
+    // 如果四个方向都被阻挡（例如遇到墙壁 Species::Wall 或酸 Species::Acid），酸会检查是否能向上（api.get(0, -1)) 移动。
+    // 向下
     if api.get(0, 1).species == Species::Empty {
         api.set(0, 0, EMPTY_CELL);
         api.set(0, 1, cell);
     } else if api.get(dx, 0).species == Species::Empty {
+        // 向右
         api.set(0, 0, EMPTY_CELL);
         api.set(dx, 0, cell);
     } else if api.get(-dx, 0).species == Species::Empty {
+        // 向左
         api.set(0, 0, EMPTY_CELL);
         api.set(-dx, 0, cell);
     } else {
+        // 向上
         if api.get(0, 1).species != Species::Wall && api.get(0, 1).species != Species::Acid {
             api.set(0, 0, EMPTY_CELL);
             api.set(0, 1, degraded);
@@ -1207,22 +1308,38 @@ pub fn update_acid(cell: Cell, mut api: SandApi) {
             && api.get(0, -1).species != Species::Acid
             && api.get(0, -1).species != Species::Empty
         {
+            // 4 酸的腐蚀行为：
+            //
+            // 如果酸能够移动到空单元格，它会将自己放到新位置，并将当前单元格清空。
+            // 如果周围不是空单元格，酸会腐蚀（退化）周围的物质。如果周围的物质是墙壁或酸，酸不会继续腐蚀。否则，它会把腐蚀后的酸放到该位置。
             api.set(0, 0, EMPTY_CELL);
             api.set(0, -1, degraded);
         } else {
+            // 5 回退行为：
+            //
+            // 如果酸没有找到可以移动或腐蚀的地方，它会保持在当前位置。
             api.set(0, 0, cell);
         }
     }
 }
 
 pub fn update_mite(cell: Cell, mut api: SandApi) {
+    // 1：初始设置：
+    // 生成一个随机整数，dx 和 dy 代表螨虫的移动方向。
+    // 根据 cell.ra 和 cell.rb 的值来调整 dx 和 dy，这决定了螨虫的移动方向。
     let mut i = api.rand_int(100);
     let mut dx = 0;
+
+    //2 方向控制：
+    //
+    // 如果 cell.ra < 20，螨虫向左移动（dx = (cell.ra as i32) - 1）。
+    // 如果 cell.rb > 10，螨虫向上移动（dy = -1），否则向下移动（dy = 1）。
     if cell.ra < 20 {
         dx = (cell.ra as i32) - 1;
     }
     let mut dy = 1;
     let mut mite = cell.clone();
+
 
     if cell.rb > 10 {
         // /
@@ -1235,12 +1352,21 @@ pub fn update_mite(cell: Cell, mut api: SandApi) {
         // |
         dx = 0;
     }
+    //3 与邻居的互动：
+    //
+    // nbr = api.get(dx, dy)：获取螨虫将要移动到的目标位置的单元格。
+    // 随机决定 sx 和 sy，来采样周围的单元格。
     let nbr = api.get(dx, dy);
 
     let sx = (i % 3) - 1;
     i = api.rand_int(1000);
     let sy = (i % 3) - 1;
     let sample = api.get(sx, sy).species;
+
+    // 4与特定物质的互动：
+    //
+    // 如果采样的物质是火（Fire）、岩浆（Lava）、水（Water）或油（Oil），螨虫会消失（设置为空单元格 EMPTY_CELL）。
+
     if sample == Species::Fire
         || sample == Species::Lava
         || sample == Species::Water
@@ -1249,20 +1375,29 @@ pub fn update_mite(cell: Cell, mut api: SandApi) {
         api.set(0, 0, EMPTY_CELL);
         return;
     }
+    // // 如果采样的是植物类物质（Plant、Wood、Seed），并且随机值 i > 800，螨虫会移动到该位置。
     if (sample == Species::Plant || sample == Species::Wood || sample == Species::Seed) && i > 800 {
         api.set(0, 0, EMPTY_CELL);
         api.set(sx, sy, cell);
 
         return;
     }
+
+    // 5处理尘土：
+    //
+    // 如果采样的物质是尘土（Dust），螨虫会根据随机概率决定是否消失或者停留
     if sample == Species::Dust {
         api.set(sx, sy, if i > 800 { cell } else { EMPTY_CELL });
     }
-
+    // 6 螨虫的移动：
+    //
+    // 如果目标位置是空的（Species::Empty），螨虫会移动到那里。
     if nbr.species == Species::Empty {
         api.set(0, 0, EMPTY_CELL);
         api.set(dx, dy, mite);
     } else if dy == 1 && i > 800 {
+        // 如果周围被其它螨虫阻塞，螨虫可能会卡住或者改变方向。
+
         i = api.rand_int(100);
         let mut ndx = (i % 3) - 1;
         if i < 6 {
@@ -1275,12 +1410,16 @@ pub fn update_mite(cell: Cell, mut api: SandApi) {
 
         api.set(0, 0, mite);
     } else {
+        // 如果周围是冰块，螨虫会尝试在冰面上移动或者爬升。
         if api.get(-1, 0).species == Species::Mite
             && api.get(1, 0).species == Species::Mite
             && api.get(0, -1).species == Species::Mite
         {
             api.set(0, 0, EMPTY_CELL);
         } else {
+            //7 最终状态更新：
+            //
+            // 更新螨虫的状态，或者将其移除并将空单元格设置在当前位置。
             if api.get(0, 1).species == Species::Ice {
                 if api.get(dx, 0).species == Species::Empty {
                     api.set(0, 0, EMPTY_CELL);
