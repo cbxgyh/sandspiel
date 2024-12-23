@@ -76,6 +76,10 @@ const universe = isBench ? window.u : Universe.new(n, n);
 
 let width = n;
 let height = n;
+
+// 画布设置（沙子模拟）
+// 画布设置: 初始化 canvas 元素，设置它的高度和宽度，根据 devicePixelRatio 来调整画布尺寸，以支持高 DPI 屏幕。
+
 const canvas = document.getElementById("sand-canvas");
 const canvas2 = document.getElementById("fluid-canvas");
 
@@ -90,6 +94,9 @@ document.getElementById("background").addEventListener("touchmove", (e) => {
   }
 });
 
+
+// 流体和沙子渲染设置
+// 流体和沙子渲染: 如果不是在 "bench" 模式下，初始化流体和 WebGL 沙子渲染；如果是在 "bench" 模式下，使用全局变量（
 let fluid;
 let drawSand;
 if (!isBench) {
@@ -99,6 +106,9 @@ if (!isBench) {
   fluid = window.f;
   drawSand = window.r;
 }
+
+// 渲染循环
+// 渲染循环: renderLoop 函数通过 requestAnimationFrame 实现循环渲染，定期更新宇宙状态、流体模拟并渲染沙子
 const renderLoop = () => {
   if (!window.paused) {
     fps.render(); // new
@@ -116,6 +126,7 @@ if (!isBench) {
   boot(width, height);
 }
 
+// 重置: 重置流体模拟和宇宙模拟状态，可能是为了清除当前状态并恢复到初始配置
 function reset() {
   fluid.reset();
   fluid.update();
@@ -125,13 +136,15 @@ function reset() {
   universe.reset();
 }
 
+// 键盘和剪贴板事件处理
+// 当按下 Ctrl+Z（或 Cmd+Z）时，重置流体和宇宙，并回退到上一个状态（撤销）。
 document.addEventListener("keydown", function (event) {
   if ((event.ctrlKey || event.metaKey) && event.key === "z") {
     reset();
     universe.pop_undo();
   }
 });
-
+// 当粘贴内容包含 SVG 时，调用 window.UI.loadSVG() 方法处理该 SVG 数据。
 document.addEventListener("paste", function(event) {
   const text = event.clipboardData.getData('text/plain');
   if (text.includes("<svg")) {

@@ -884,6 +884,10 @@ function startFluid({ universe }) {
     // pressureRead ->
     // velocityOut
     // 计算速度输出：
+    // 在这一步，速度输出（Velocity Output） 会更新流体的速度场。
+    // velocityOutProgram 是用于更新速度场的 shader 程序。
+    // 绑定 velocity.read[0] 作为当前速度场的输入纹理，并绑定 pressure.read[0] 作为压力场的输入纹理。
+    // 使用 blit(velocityOut[1]) 将更新后的速度场写入 velocityOut[1]，并更新速度缓冲区。
     velocityOutProgram.bind();
 
     var texUnit = 0;
@@ -898,6 +902,13 @@ function startFluid({ universe }) {
     // gl.uniform1i(velocityOutProgram.uniforms.uTexture, velocity.read[2]);
     // gl.uniform1i(velocityOutProgram.uniforms.uPressure, pressure.read[2]);
     blit(velocityOut[1]);
+
+
+
+    // 同步操作（Sync GPU
+    // 这个部分的目的是同步 GPU 操作，以确保渲染结果在继续执行下一步之前已经完成。
+    // 使用 gl.readPixels 读取 GPU 渲染结果。
+    // gl.fenceSync 和 gl.clientWaitSync 用来同步 CPU 和 GPU 之间的操作，确保读取操作在 GPU 渲染完成后进行
     if (!isWebGL2 || isIOS) {
       gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, winds);
     } else if (sync === undefined) {
@@ -920,7 +931,11 @@ function startFluid({ universe }) {
     // sands ->
     // velocityWrite
     gradientSubtractProgram.bind();
-
+    // 梯度减法
+    // 梯度减法（Gradient Subtraction） 是一个常见的流体模拟技术，用来调整流体的速度场。
+    // 在这个步骤中，通过 gradientSubtractProgram 计算速度场的梯度，并根据压力和燃烧等信息对速度场进行修正。
+    // 绑定 burns[0]、pressure.read[0]、velocity.read[0] 和 cells[0] 作为输入纹理。
+    // 通过 blit(velocity.write[1]) 更新速度场，并交换速度缓冲区
     var texUnit = 0;
     gl.activeTexture(gl.TEXTURE0 + texUnit);
     gl.bindTexture(gl.TEXTURE_2D, burns[0]);
@@ -952,6 +967,9 @@ function startFluid({ universe }) {
 
     gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
 
+    // 最后，显示程序（Display Program） 用于将最终的密度或其它模拟结果渲染到屏幕上。
+    // 绑定 `density.read[
+
     // DISPLAY
     // density ->
     // null/renderbuffer?
@@ -966,16 +984,25 @@ function startFluid({ universe }) {
 
     blit(null);
   }
-
+  // 这段代码的主要作用是模拟流体（例如液体、气体等）的喷溅（splat），并在 WebGL 上进行渲染。在这段代码中，有两个函数：splat 和 multipleSplats，用于执行单次喷溅和多个喷溅的操作
+  // splat 函数是流体模拟中的一个基本操作，用于在指定位置进行喷溅，并更新速度场和密度场。
+  // x, y: 喷溅的位置（以像素为单位）。
+// dx, dy: 喷溅的速度（在 X 和 Y 方向上的分量），表示喷溅的速度矢量。
+// color: 喷溅的颜色，通常是流体的颜色，传递的是一个包含 RGB 值的数组（例如 [1.0, 0.0, 0.0] 代表红色）。
   function splat(x, y, dx, dy, color) {
+    // 这行代码将绑定一个 WebGL shader 程序，名为 splatProgram，它用于执行喷溅操作。此程序的主要任务是计算喷溅的位置、速度和颜色，并将结果写入流体模拟的纹理中。
     splatProgram.bind();
 
+    // 选择一个纹理单元（TEXTURE0），并将 velocity.read[0]（当前的速度场纹理）绑定到该单元。
+    // 通过 gl.uniform1i 设置 splatProgram shader 的 uTarget uniform，这个 uniform 代表目标纹理，即将喷溅结果写入的纹理。
     var texUnit = 0;
     gl.activeTexture(gl.TEXTURE0 + texUnit);
     gl.bindTexture(gl.TEXTURE_2D, velocity.read[0]);
     gl.uniform1i(splatProgram.uniforms.uTarget, texUnit++);
 
     // gl.uniform1i(splatProgram.uniforms.uTarget, velocity.read[2]);
+    // 设置 aspectRatio uniform，它表示画布的宽高比，用于调整喷溅的形状，以适应不同的画布尺寸。
+    // 设置 point uniform，这是喷溅的目标位置，经过归一化（即 x 和 y 被除以画布的宽度和高度），这样就可以处理不同分辨率的画布
     gl.uniform1f(
       splatProgram.uniforms.aspectRatio,
       canvas.width / canvas.height
@@ -985,24 +1012,36 @@ function startFluid({ universe }) {
       y / canvas.height,
       x / canvas.width
     );
+
+    // color 是喷溅的颜色，它根据 dx 和 dy 设置了速度场的颜色（假设速度方向决定了颜色）。
+    // radius 是喷溅的半径，通过 window.UI.state.size 获取喷溅的大小，除以 600 进行归一化处理
     gl.uniform3f(splatProgram.uniforms.color, dy, dx, 1.0);
     gl.uniform1f(
       splatProgram.uniforms.radius,
       (window.UI.state.size + 1) / 600
     );
+
+    // 调用 blit(velocity.write[1]) 将计算结果写入到 velocity.write[1]，更新速度场。
+    // 使用 velocity.swap() 交换纹理，确保下一次操作使用更新后的速度场。
     blit(velocity.write[1]);
     velocity.swap();
 
+    // 1.密度场
+    // 将 density.read[0]（当前的密度场纹理）绑定到纹理单元，并更新 uTarget uniform，表示目标密度场。
     gl.activeTexture(gl.TEXTURE0 + texUnit);
     gl.bindTexture(gl.TEXTURE_2D, density.read[0]);
     gl.uniform1i(splatProgram.uniforms.uTarget, texUnit++);
 
+    // 将 color 设置为喷溅的颜色，并将喷溅效果写入密度场（density.write[1]）。
+    // 使用 density.swap() 更新密度场纹理。
     // gl.uniform1i(splatProgram.uniforms.uTarget, density.read[2]);
     gl.uniform3f(splatProgram.uniforms.color, color[0], color[1], color[2]);
     blit(density.write[1]);
     density.swap();
   }
 
+  // 用于生成多个喷溅，通常在模拟中用来产生随机的流体涌动效果。
+  // 用于生成多个喷溅，通常在模拟中用来产生随机的流体涌动效果。
   function multipleSplats(amount) {
     for (let i = 0; i < amount; i++) {
       const color = fluidColor;
@@ -1052,6 +1091,8 @@ function startFluid({ universe }) {
         }
       }
       const touches = e.targetTouches;
+      // 这个函数通过一个循环生成多个喷溅，每个喷溅的位置、速度和颜色都是随机的。
+      // 每次迭代时，都会调用 splat 函数，生成一个喷溅。
       for (let i = 0; i < touches.length; i++) {
         let pointer = pointers[i];
         pointer.moved = pointer.down;
@@ -1067,12 +1108,23 @@ function startFluid({ universe }) {
     },
     false
   );
-
+  // 这段代码主要是通过监听用户的鼠标和触摸事件，来管理与流体模拟互动的“指针”。它使用事件监听器来检测鼠标点击或触摸屏幕的行为，并更新 pointers 数组中的相应指针状态。这段代码看起来像是一个用户输入管理系统的一部分，通常用于交互式应用，如沙箱模拟或者流体模拟。下面我会逐行详细解释这些事件处理的逻辑。
+// 该事件处理函数会在用户按下鼠标时触发。它通过 pointers[0].down = true 标记第一个指针（鼠标）的状态为“按下”。
+// 该指针的颜色被设置为 fluidColor，通常是流体模拟的颜色，表明当前正在使用该颜色进行互动。
   sandCanvas.addEventListener("mousedown", () => {
     pointers[0].down = true;
     pointers[0].color = fluidColor;
   });
 
+
+// （触摸屏幕）
+// 事件处理函数会在用户触摸屏幕时触发。
+// e.preventDefault() 取消了默认的触摸行为，通常是为了避免浏览器进行滚动或其他默认操作，确保触摸事件只用来进行模拟。
+// e.targetTouches 获取当前所有触摸点的数组。
+// 通过 for 循环遍历每一个触摸点：
+// 如果 pointers 数组的长度小于当前触摸点数量，则会创建新的指针（pointerPrototype()）。这样就能够支持多点触控。
+// 通过计算 clientX 和 clientY，并减去 boundingRect.left 和 boundingRect.top，获得触摸点相对于画布的位置。通过 scaleX 和 scaleY 对位置进行缩放调整（可能是为了适应不同屏幕分辨率）。
+// 每个触摸点都会被分配一个唯一的 ID（touches[i].identifier）以及它的触摸状态（down = true）。指针的坐标和颜色也会被更新。
   sandCanvas.addEventListener("touchstart", (e) => {
     if (e.cancelable) {
       e.preventDefault();
@@ -1091,11 +1143,15 @@ function startFluid({ universe }) {
       pointers[i].color = fluidColor;
     }
   });
-
+// （鼠标松开）
+// 当用户释放鼠标按钮时，pointers[0].down 被设置为 false，表示第一个指针（鼠标）的状态变为“松开”。
   window.addEventListener("mouseup", () => {
     pointers[0].down = false;
   });
 
+  // （触摸结束）
+  // 该事件会在用户的触摸结束时触发。通过 e.changedTouches 获取所有已结束的触摸点。
+// 通过双重循环匹配触摸点的 ID 和当前指针的 ID，一旦匹配，设置对应指针的 down 状态为 false，表示触摸点已结束。
   window.addEventListener("touchend", (e) => {
     const touches = e.changedTouches;
     for (let i = 0; i < touches.length; i++)
