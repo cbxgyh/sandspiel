@@ -1,5 +1,15 @@
 import { Species } from "../crate/pkg/sandtable";
 
+// rgbaToSpecies：将 RGBA 颜色值转换为物种（Species）标识符
+// 该函数接收四个参数 (r, g, b, a)，表示 RGBA 颜色值。函数的主要步骤如下
+//    如果透明度 a 小于 250，则返回 Species.Empty，表示透明或空状态。
+  // 将 RGB 值归一化到 [0, 1] 范围内，即每个值除以 255。
+  // 计算 HSL 色彩模型中的色相（H）、饱和度（S）和亮度（L）。
+  // 对于灰度颜色（例如，接近黑色或白色），会根据亮度判断返回不同的物种：
+  // 黑色返回 Species.Wall（墙）。
+  // 白色返回 Species.Empty（空）。
+  // 浅灰色返回 Species.Sand（沙）。
+  // 对于非灰度颜色，函数使用色相和亮度值计算并选择对应的物种。色相值决定了颜色类型（例如，红色、黄色、绿色等），而亮度决定了具体的物种。
 export function rgbaToSpecies(r, g, b, a) {
   // Transparent to Empty
   if (a < 250) {
@@ -77,7 +87,15 @@ export function rgbaToSpecies(r, g, b, a) {
 
   return species ? species : Species.Empty;
 }
-
+// svgToImageData：将 SVG 字符串转换为图像数据（ImageData）
+// 该函数将 SVG 字符串转换为图像数据，并返回该图像的像素信息。主要步骤如下：
+//
+// 使用 DOMParser 解析 SVG 字符串，如果解析出错，则抛出错误。
+// 将 SVG 尺寸调整为默认的 300x300（根据“Sandspiel”游戏的宇宙大小）。
+// 使用 XMLSerializer 将 SVG 转换回字符串，并创建一个 Blob 对象，将 SVG 作为图像载入。
+// 等待图像加载完成后，将图像绘制到一个 Canvas 元素上，并从中提取图像的像素数据（ImageData）。
+// 对 Canvas 上下文进行旋转和缩放，使其与游戏世界的坐标系对齐。
+// 返回图像的像素数据
 export async function svgToImageData (svgString) {
   const width = 300;
   const height = 300;
