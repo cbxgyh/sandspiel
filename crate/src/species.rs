@@ -181,45 +181,72 @@ pub fn update_stone(cell: Cell, mut api: SandApi) {
     }
 }
 
+// 在一个细胞自动机的模拟中处理水的行为，可能是用来模拟沙盒游戏或者物理引擎中的流体行为。它通过不同的条件和随机行为来操控当前水的细胞及其邻近的细胞。
+// cell: 当前的水细胞。  api: 一个引用 SandApi 的对象，提供了随机数生成和操作邻近细胞的方法。
 pub fn update_water(cell: Cell, mut api: SandApi) {
-    let mut dx = api.rand_dir();
-    let below = api.get(0, 1);
-    let dx1 = api.get(dx, 1);
+    let mut dx = api.rand_dir();  // 随机方向
+    let below = api.get(0, 1);    // 获取下方细胞
+    let dx1 = api.get(dx, 1);     // 获取斜下方细胞
     // let mut dx0 = api.get(dx, 0);
     //fall down
+    //1. 下落（重力效果）：
+    //  如果下方的细胞为空或含有油，水就会下落到下方的空细胞。并且有一定概率会随机改变水流的方向 (ra)，然后更新下方的细胞状态。
+
+    // 函数首先检查下方的细胞 (below) 是否为空或含有油 (Species::Empty || Species::Oil)。
+    // 如果是的话，它将当前水细胞移动到下方，并在一定概率下随机改变水的方向 (ra)，模拟水流的随机性。
     if below.species == Species::Empty || below.species == Species::Oil {
+        //  移动到下方
         api.set(0, 0, below);
         let mut ra = cell.ra;
+        // 每20次随机改变方向
         if api.once_in(20) {
             //randomize direction when falling sometimes
+
             ra = 100 + api.rand_int(50) as u8;
         }
+        // 更新下方细胞的状态
         api.set(0, 1, Cell { ra, ..cell });
 
         return;
     } else if dx1.species == Species::Empty || dx1.species == Species::Oil {
+        // 斜向下落：
+        //如果水流方向斜下方的细胞为空或含有油，水会沿斜线下落到该细胞。
+        // 如果斜对角方向的细胞（dx1）为空或含有油，水会沿斜线下落到该位置。
         //fall diagonally
-        api.set(0, 0, dx1);
-        api.set(dx, 1, cell);
+        api.set(0, 0, dx1);  // 移动到斜下方
+        api.set(dx, 1, cell); // 更新当前位置
         return;
     } else if api.get(-dx, 1).species == Species::Empty {
-        api.set(0, 0, EMPTY_CELL);
-        api.set(-dx, 1, cell);
+        // 如果水流方向反方向的细胞为空，水就会向反方向移动。
+        api.set(0, 0, EMPTY_CELL);  // 清空当前位置
+        api.set(-dx, 1, cell);  // 将水移动到反方向的下方
         return;
     }
-    let left = cell.ra % 2 == 0;
-    dx = if left { 1 } else { -1 };
-    let dx0 = api.get(dx, 0);
-    let dxd = api.get(dx * 2, 0);
+
+
+    let left = cell.ra % 2 == 0;  // 判断当前水是否在左侧（基于 ra）
+    dx = if left { 1 } else { -1 };  // 根据 ra 确定方向
+    let dx0 = api.get(dx, 0);  // 获取水流方向上的细胞
+    let dxd = api.get(dx * 2, 0);  // 获取更远的细胞
 
     if dx0.species == Species::Empty && dxd.species == Species::Empty {
         // scoot double
-        api.set(0, 0, dxd);
-        api.set(2 * dx, 0, Cell { rb: 6, ..cell });
-        let (dx, dy) = api.rand_vec_8();
+        // 双重滑动：
+        //  如果当前方向和更远的位置都为空，水会移动到更远的空位置，模拟水流的扩展。
+
+        // 如果发现两格空的细胞（水平方向或垂直方向），水会向更远的一个位置移动，
+        // 这样可以使水扩散得更广，并且可能会改变 ra 属性（这可能与水的行为或颜色相关）。
+        api.set(0, 0, dxd);  // 移动到更远的空位置
+        api.set(2 * dx, 0, Cell { rb: 6, ..cell });  // 设置新位置的状态
+        let (dx, dy) = api.rand_vec_8();  // 随机获取周围邻居
         let nbr = api.get(dx, dy);
 
         // spread opinion
+        // 扩散：
+        //
+        // 如果水附近有其他水细胞，函数会检查它们的 ra 值（可能是颜色或状态指示符）。
+        // 如果它们不同，水会通过复制另一个水细胞的 ra 值来进行“扩散”。
+
         if nbr.species == Species::Water {
             if nbr.ra % 2 != cell.ra % 2 {
                 api.set(
@@ -233,23 +260,33 @@ pub fn update_water(cell: Cell, mut api: SandApi) {
             }
         }
     } else if dx0.species == Species::Empty || dx0.species == Species::Oil {
-        api.set(0, 0, dx0);
-        api.set(dx, 0, Cell { rb: 3, ..cell });
-        let (dx, dy) = api.rand_vec_8();
-        let nbr = api.get(dx, dy);
-        if nbr.species == Species::Water {
-            if nbr.ra % 2 != cell.ra % 2 {
-                api.set(
-                    dx,
-                    dy,
-                    Cell {
-                        ra: cell.ra,
-                        ..cell
-                    },
-                )
+        // 当前水流方向上的邻居是否为空（Species::Empty）或者含有油   如果是空的或者是油，水就可以流到该位置。
+        // 模拟水流在碰到空细胞或油时的行为，并尝试使水与周围的水细胞发生交互，特别是在它们的 ra
+        api.set(0, 0, dx0);  // 将当前位置设置为 dx0（可能为空或者油）
+        api.set(dx, 0, Cell { rb: 3, ..cell });  // 将水移动到 dx 方向，设置 rb 为 3
+        let (dx, dy) = api.rand_vec_8();  // 随机选择一个八个方向中的一个邻居
+        let nbr = api.get(dx, dy);  // 获取该邻居细胞
+
+        if nbr.species == Species::Water {  // 如果邻居是水
+            if nbr.ra % 2 != cell.ra % 2 {  // 如果邻居的 ra 与当前水的 ra 不同
+                api.set(  // 更新邻居的状态，使它的 ra 与当前水的 ra 一致
+                          dx,
+                          dy,
+                          Cell {
+                              ra: cell.ra,  // 设置相同的 ra
+                              ..cell
+                          },
+                );
             }
         }
     } else if cell.rb == 0 {
+        // 碰撞：
+        // 如果当前水的“碰撞性” (rb) 为零，水会检查反方向的邻居是否为空，如果为空，水会“碰撞”并更新位置。
+        //
+        // 如果 rb（可能是“碰撞”或交互计数器）为零，函数会检查水的反方向邻近细胞（-dx）是否为空，如果为空，水会“碰撞”并调整其 ra 值。
+        // 减少“碰撞性”：
+        //
+        // 如果 rb 值大于零，水会减少 rb 值，这意味着水的“碰撞性”降低，更容易发生下一次的碰撞或交互。
         if api.get(-dx, 0).species == Species::Empty {
             // bump
             api.set(
@@ -262,6 +299,8 @@ pub fn update_water(cell: Cell, mut api: SandApi) {
             );
         }
     } else {
+        // 减少“碰撞性”：
+        // 如果水的 rb 值大于零，表示水变得更易发生碰撞，水的 rb 值减少。
         // become less certain (more bumpable)
         api.set(
             0,
@@ -298,106 +337,157 @@ pub fn update_water(cell: Cell, mut api: SandApi) {
     // }
 }
 
-pub fn update_oil(cell: Cell, mut api: SandApi) {
-    let rb = cell.rb;
-    let (dx, dy) = api.rand_vec();
+// 它通过检查油的状态、周围细胞的状态以及与其他物质（如水、火、熔岩等）的交互来决定油的变化与移动
 
-    let mut new_cell = cell;
-    let nbr = api.get(dx, dy);
+// update_oil 函数模拟了油在不同条件下的行为，包括：
+//
+// 油的流动和扩散。
+// 油与火、熔岩、油、以及水的交互。
+// 油的 rb 值（可能代表油的粘度或状态）变化。
+// 油在与空白细胞交互时的行为。
+pub fn update_oil(cell: Cell, mut api: SandApi) {
+    let rb = cell.rb;  // 获取油的 rb（可能是粘度或流动性）值
+    let (dx, dy) = api.rand_vec();  // 获取一个随机方向，dx 和 dy 代表了油的移动方向
+
+    let mut new_cell = cell;  // 创建一个新的 cell，初始化为当前的 cell
+    let nbr = api.get(dx, dy);  // 获取油的目标邻居（在 dx, dy 方向上的细胞）
+
+    // 1 火和熔岩与油的交互：
+    //
+    // 如果油的 rb 为 0，且周围有火或熔岩，油会变成新的油，rb 设置为 50，这可能意味着油被加热或改变了粘度。
+    // 如果油遇到另一个油，且该油的 rb 值在 1 到 20 之间，油的 rb 会变为 50，这可能代表两种油的混合或者油的状态发生了改变。
     if rb == 0 && nbr.species == Species::Fire
         || nbr.species == Species::Lava
         || (nbr.species == Species::Oil && nbr.rb > 1 && nbr.rb < 20)
     {
+        // 如果符合条件，将油变为新的油，且设置 rb 为 50，代表油变得更加粘稠或具有特定特性
         new_cell = Cell {
             species: Species::Oil,
             ra: cell.ra,
-            rb: 50,
+            rb: 50,  // 可能代表油的粘稠度增加
             clock: 0,
         };
     }
+    // 2 油的流动和粘度变化：
+    //
+    // 当油的 rb 值大于 1 时，油的 rb 值会递减，表示油的粘度逐渐变小，变得更容易流动。
+    // 如果油的 rb 值不能被 4 整除，并且周围是空的、不是水的地方，则油会引发火灾（将该位置设置为火）。
 
+    // 如果油的 rb 值大于 1，油的状态会有所改变
     if rb > 1 {
         new_cell = Cell {
             species: Species::Oil,
             ra: cell.ra,
-            rb: rb - 1,
+            rb: rb - 1,  // 使 rb 值减小，可能代表油逐渐变得不那么粘稠
             clock: 0,
         };
+
+        // 设置流体的特性，模拟油的流动或蒸发
         api.set_fluid(Wind {
             dx: 0,
             dy: 10,
             pressure: 10,
             density: 180,
         });
+
+        // 如果油的 rb 值不能被 4 整除，且邻居为空或不是水，可能产生火
         if rb % 4 != 0 && nbr.species == Species::Empty && nbr.species != Species::Water {
-            let ra = 20 + api.rand_int(30) as u8;
+            let ra = 20 + api.rand_int(30) as u8;  // 生成一个随机的火的 ra 值
             api.set(
                 dx,
                 dy,
                 Cell {
-                    species: Species::Fire,
+                    species: Species::Fire,  // 设置邻居为火
                     ra,
                     rb: 0,
                     clock: 0,
                 },
             );
         }
+        // 3 油与水的交互：
+        //
+        // 如果油遇到水，油的 rb 会变为 0，表示油被水冲散，油的流动性可能变为水一样，或者油和水发生了混合。
+
+        // 如果邻居是水，则油的 rb 值变为 0，表示油被水冲走
         if nbr.species == Species::Water {
             new_cell = Cell {
                 species: Species::Oil,
                 ra: 50,
-                rb: 0,
+                rb: 0,  // 设置油的 rb 为 0，可能表示油被水冲走了
                 clock: 0,
             };
         }
-    } else if rb == 1 {
+    } else if rb == 1 {  // 如果油的 rb 为 1，则油的状态更新为空
+        //4 油的转变和清空：
+        //
+        // 如果油的 rb 为 1，油将被设置为空，表示油已经消散或者流动完。
         api.set(
             0,
             0,
             Cell {
                 species: Species::Empty,
                 ra: cell.ra,
-                rb: 90,
+                rb: 90,  // 设置新的 rb 值为 90
                 clock: 0,
             },
         );
         return;
     }
+    // 5 油的移动：
+    //
+    // 如果油下方或周围的邻居是空的，油会向这些空白位置流动。油的流动遵循从当前位置（0, 0）向下、斜下、左下、右下等方向寻找空位置的顺序。
+    // 如果所有周围位置都不是空的，油会停留在当前位置。
 
+    // 油的移动逻辑：如果下方或其它相邻位置是空的，油会流到该位置
     if api.get(0, 1).species == Species::Empty {
-        api.set(0, 0, EMPTY_CELL);
-        api.set(0, 1, new_cell);
+        api.set(0, 0, EMPTY_CELL);  // 清空当前位置
+        api.set(0, 1, new_cell);  // 将油放置到下方
     } else if api.get(dx, 1).species == Species::Empty {
-        api.set(0, 0, EMPTY_CELL);
-        api.set(dx, 1, new_cell);
+        api.set(0, 0, EMPTY_CELL);  // 清空当前位置
+        api.set(dx, 1, new_cell);  // 将油放置到斜下方
     } else if api.get(-dx, 1).species == Species::Empty {
-        api.set(0, 0, EMPTY_CELL);
-        api.set(-dx, 1, new_cell);
+        api.set(0, 0, EMPTY_CELL);  // 清空当前位置
+        api.set(-dx, 1, new_cell);  // 将油放置到反方向的下方
     } else if api.get(dx, 0).species == Species::Empty {
-        api.set(0, 0, EMPTY_CELL);
-        api.set(dx, 0, new_cell);
+        api.set(0, 0, EMPTY_CELL);  // 清空当前位置
+        api.set(dx, 0, new_cell);  // 将油放置到水平方向
     } else if api.get(-dx, 0).species == Species::Empty {
-        api.set(0, 0, EMPTY_CELL);
-        api.set(-dx, 0, new_cell);
+        api.set(0, 0, EMPTY_CELL);  // 清空当前位置
+        api.set(-dx, 0, new_cell);  // 将油放置到反方向的水平方向
     } else {
+        // 如果没有空位置，保持当前位置不变
         api.set(0, 0, new_cell);
     }
 }
 
-pub fn update_gas(cell: Cell, mut api: SandApi) {
-    let (dx, dy) = api.rand_vec();
+// 模拟气体（Species::Gas）的行为。函数根据气体的 rb 值（可能代表气体的浓度、压力或体积）以及与周围细胞的交互来更新气体的状态
+// rb 值被用来表示气体的浓度、粒子数或类似的物理量。
+// 如果 rb 为 0，则气体的状态会发生改变，rb 设置为 5，表示气体浓度或“压力”的增加。
+// 气体在扩散过程中会逐渐减少 rb 值，模拟气体粒子从一个位置扩散到相邻位置。
 
-    let nbr = api.get(dx, dy);
+pub fn update_gas(cell: Cell, mut api: SandApi) {
+    let (dx, dy) = api.rand_vec();  // 获取一个随机方向，dx 和 dy 代表气体的移动方向
+
+    let nbr = api.get(dx, dy);  // 获取该方向上的邻居细胞
     // api.set_fluid(Wind {
     //     dx: 0,
     //     dy: 0,
     //     pressure: 5,
     //     density: 0,
     // });
+    // 如果当前气体的 rb 值为 0，这可能表示气体处于某种初始状态（如“分子”状态），则将其 rb 设置为 5，
+    // 表示气体变得更加“浓密”或具有某种其他特性（可能是气体的压力或浓度）。
     if cell.rb == 0 {
         api.set(0, 0, Cell { rb: 5, ..cell });
     }
+    // 1 气体的扩散：
+    //
+    // 当气体的 rb 小于 3 时，气体会作为单个分子（或者表示气体粒子）向邻居细胞移动。
+    // 当气体的 rb 大于等于 3 时，气体会分散（rb 值减小），并且气体的一部分被移动到邻居位置。
 
+    // 如果邻居是空的（Species::Empty），则气体会向空细胞移动。
+    // 如果气体的 rb 小于 3（可能表示气体为单个分子），则将气体从当前位置移动到邻居位置。
+    // 如果气体的 rb 大于等于 3，则气体的 rb 会减小（通过设置当前位置的 rb 为 1，表示气体分散），并将剩余的气体移动到邻居位置。
     if nbr.species == Species::Empty {
         if cell.rb < 3 {
             //single molecule
@@ -415,6 +505,13 @@ pub fn update_gas(cell: Cell, mut api: SandApi) {
             );
         }
     } else if (dx != 0 || dy != 0) && nbr.species == Species::Gas && nbr.rb < 4 {
+        // 2  气体与其他气体的交互： 气体的合并
+        //
+        // 当邻居是气体时，如果邻居的 rb 小于 4，当前气体会与邻居气体的 rb 合并。这代表了气体的“聚集”或“扩散”现象。
+
+        // 如果邻居是气体（Species::Gas），并且邻居的 rb 值小于 4（表示邻居气体的浓度较低），则气体会与邻居气体发生合并。
+        // 当前气体的 rb 值会与邻居气体的 rb 值相加，表示气体浓度的增加。
+        // 然后，当前位置被清空，气体被放置到邻居的位置。
         // if (cell.rb < 2) {
         api.set(0, 0, EMPTY_CELL);
         // }
@@ -442,11 +539,29 @@ pub fn update_gas(cell: Cell, mut api: SandApi) {
 //     }
 // }
 
+// “克隆体”（Cloner）的物质在模拟环境中的行为。克隆体根据周围的环境不断复制自己或尝试克隆其他物质。
+// 1 克隆体会根据周围的细胞类型和状态，克隆出新的细胞。
+// 2 克隆体会根据当前的 rb 值来决定是否克隆其他物质（如水、沙子、油等），或者自身继续克隆。
+// 3 如果 rb 为 0，则克隆体会选择一个相邻的非空白细胞，克隆该物质。
+// 4 如果 rb 不为 0，则克隆体会尝试在周围的空白细胞中创建一个新的克隆体。
+
+// 多样化的克隆条件：可以根据 generation 或 ra 值调整克隆体的克隆行为，使其更加有趣和复杂。
+// 克隆体之间的竞争或互动：可以加入克隆体之间的互动规则，比如克隆体相互之间的冲突或竞争。
 pub fn update_cloner(cell: Cell, mut api: SandApi) {
-    let mut clone_species = unsafe { mem::transmute(cell.rb as u8) };
-    let g = api.universe.generation;
+    let mut clone_species = unsafe { mem::transmute(cell.rb as u8) };  // 将 `cell.rb` 转换为物种类型
+    let g = api.universe.generation;  // 获取当前的宇宙代数
+    // 这部分代码是用来遍历克隆体周围的 3x3 区域（包括当前位置）。
+    // dx 和 dy 分别代表 x 和 y 方向上的偏移，范围从 -1 到 1。
     for dx in [-1, 0, 1].iter().cloned() {
         for dy in [-1, 0, 1].iter().cloned() {
+            // 1.克隆目标选择：
+            //
+            // 如果 cell.rb == 0，克隆体会选择一个相邻的非空白细胞进行克隆，克隆体的 rb 值将被设置为新克隆物质的物种类型。
+
+            // 如果 cell.rb 为 0（即克隆体未被激活或正在选择克隆目标）：
+            // 获取相邻细胞的物种（nbr_species）。
+            // 如果相邻细胞的物种不是空的（Species::Empty）、克隆体（Species::Cloner）或墙（Species::Wall），则将该细胞的物种类型赋给 clone_species，表示克隆体将克隆此物种。
+            // 然后，克隆体（cell）会被设置为一个新细胞，ra 设置为 200（可能是克隆体的属性，或表示克隆体的激活状态），并且其 rb 值变为新克隆的物种类型。
             if cell.rb == 0 {
                 let nbr_species = api.get(dx, dy).species;
                 if nbr_species != Species::Empty
@@ -468,6 +583,20 @@ pub fn update_cloner(cell: Cell, mut api: SandApi) {
                     break;
                 }
             } else {
+                // 2. 克隆体的扩散：
+                //
+                // 如果 cell.rb 不为 0，克隆体会尝试在周围的空白细胞中创建新的克隆体。这个过程是随机的，且具有一定的扩展性。
+                // 3 克隆体的 ra 值调整：
+                //
+                // 4 克隆体的 ra 值会根据当前代数（g）以及随机值进行调整，可能用来表示克隆体的某种特性或状态。
+                // 克隆体的限制条件：
+                //
+                // 克隆体不会克隆空白细胞、墙、或者其他克隆体；它只会克隆非空的物质，且具有一定的随机性和扩展能力
+
+                // 如果 cell.rb 不为 0（即克隆体已经激活或正在克隆）：
+                // 克隆体会尝试在周围的空白细胞（Species::Empty）中创建一个新的克隆体。这个概率通过 rand_int(100) > 90 来控制，即 10% 的几率。
+                // 如果选择的位置为空（Species::Empty），则克隆体会将一个新细胞放置在该位置，ra 会根据当前代数（g）和一个随机值来计算，以使得新克隆的细胞在某种程度上具备一定的随机性。
+                // 新创建的克隆体的 rb 值被设置为 0，表示它是一个新生的克隆体。
                 if api.rand_int(100) > 90 && api.get(dx, dy).species == Species::Empty {
                     let ra = 80 + api.rand_int(30) as u8 + ((g % 127) as i8 - 60).abs() as u8;
                     api.set(
@@ -487,10 +616,26 @@ pub fn update_cloner(cell: Cell, mut api: SandApi) {
     }
 }
 
+
+// 一个具有复杂行为的“火箭” (Rocket) 物质更新机制，涉及火箭的多个阶段（如初始化、待机、发射、飞行）。
+// 其状态通过 ra 和 rb 属性来控制，每个阶段的行为不同，且会根据周围环境的情况进行相应的调整。
+
+// update_rocket 函数通过不同的 ra 值来控制火箭的多个阶段行为，具体如下：
+//
+// 初始化：火箭开始时没有类型，随机选择一个邻近的非空白细胞并设置其物种。
+// 待机/降落：火箭会根据周围环境进行降落或保持原地，遇到合适的环境时下落。
+// 发射：火箭从待机状态进入发射状态。
+// 飞行：火箭在空中飞行，根据随机方向移动。
+// 扩展或熄火：火箭在飞行过程中可能扩展、克隆或者熄火，结束飞行。
+// 可能的改进
+// 火箭控制：可以根据某些条件调整火箭的速度、方向或行为。
+// 火箭与其他物质互动：火箭可以与更多种类的物质互动，比如引发爆炸或碰撞等。
+
 pub fn update_rocket(cell: Cell, mut api: SandApi) {
     // rocket has complicated behavior that is staged piecewise in ra.
     // it would be awesome to diagram the ranges of values and their meaning
-
+    // 火箭的初始化阶段：如果 cell.rb 为 0，表示火箭处于未初始化状态。在这种情况下，火箭被初始化为一个新的细胞，ra 为 0，rb 设置为 100，表示火箭的初始状态。
+    // 此时，ra 和 rb 用来表示火箭的不同状态。
     if cell.rb == 0 {
         //initialize
         api.set(
@@ -505,12 +650,19 @@ pub fn update_rocket(cell: Cell, mut api: SandApi) {
         return;
     }
 
+    // 物种设置阶段
+    // 这里根据 cell.rb 的值来确定火箭的物种类型。如果 cell.rb 不为 100，则将 cell.rb 转换为一个物种（Species）。
+    // 如果 cell.rb 为 100，则设置为沙子 (Species::Sand)。
     let clone_species = if cell.rb != 100 {
         unsafe { mem::transmute(cell.rb as u8) }
     } else {
         Species::Sand
     };
 
+    // 火箭的行为：未设置类型
+    // 如果 cell.rb 为 100，表示火箭尚未设置物种。在此情况下，程序随机选择一个邻近的空白细胞，
+    // 获取其物种类型。如果该物种有效（不是空白、火箭、墙或克隆体），
+    // 则将火箭的 rb 设置为该物种的类型，并且 ra 设置为 1（表示火箭已设置物种类型）。
     let (sx, sy) = api.rand_vec();
     let sample = api.get(sx, sy);
 
@@ -531,7 +683,12 @@ pub fn update_rocket(cell: Cell, mut api: SandApi) {
         );
         return;
     }
-
+    // 火箭待机（降落）阶段
+    // 如果 ra 为 0，表示火箭处于待机或降落状态。
+    // 程序随机选择一个方向，并检查当前下方（0, 1）的细胞类型。
+    // 如果下方为空白，则火箭将下落到该位置。
+    // 如果下方有液体（如水、气体、油、酸等），则火箭也会与该物质交换位置，保持原地。
+    // 如果以上条件都不满足，火箭将保持原地。
     let ra = cell.ra;
 
     if ra == 0 {
@@ -555,9 +712,15 @@ pub fn update_rocket(cell: Cell, mut api: SandApi) {
             api.set(0, 0, cell);
         }
     } else if ra == 1 {
+        // 火箭发射阶段
+        // 如果 ra 为 1，表示火箭已启动。此时，火箭的状态更新为 ra = 2，进入飞行阶段。
         //launch
         api.set(0, 0, Cell { ra: 2, ..cell });
     } else if ra == 2 {
+        // 火箭飞行阶段
+        // 如果 ra 为 2，表示火箭已开始飞行。程序会根据随机的方向生成一个移动向量（dx, dy）。
+        // 如果目标位置不是空白，则火箭的飞行方向会反向（dx 和 dy 取反）。
+        // 火箭的 ra 值会更新为 100 + join_dy_dx(dx, dy)，这表示火箭的飞行方向和状态。
         let (mut dx, mut dy) = api.rand_vec_8();
         let nbr = api.get(dx, dy);
         if nbr.species != Species::Empty {
@@ -573,6 +736,11 @@ pub fn update_rocket(cell: Cell, mut api: SandApi) {
             },
         );
     } else if ra > 50 {
+        // 火箭的进一步扩展或熄火
+        // 如果 ra 值大于 50，表示火箭正在扩展或飞行到更远的地方。
+        // 火箭将根据其 ra 值的差异计算新的飞行方向（通过 split_dy_dx 函数）。
+        // 如果目标位置为空白、火或其他火箭，火箭会在当前位置生成克隆物质（clone_species），并继续向新的方向飞行。
+        // 如果目标位置不符合条件，则火箭熄火（fizzle），被清空。
         let (dx, dy) = split_dy_dx(cell.ra - 100);
 
         let nbr = api.get(dx, dy * 2);
@@ -605,19 +773,45 @@ pub fn update_rocket(cell: Cell, mut api: SandApi) {
     }
 }
 
+
+// 火焰 (Fire) 物质的更新逻辑，控制火焰的扩散、降解以及与周围环境的互动。具体来说，
+// 它涉及火焰的降解过程、与气体或灰尘的相互作用、风力的应用以及火焰与水或其他物质的交互
+
+// 降解：火焰的强度会随着时间和扩散的随机性而降低。每次更新时，火焰的强度会被减小，模拟火焰的衰退过程。
+// 扩散：火焰会随机向周围的空白区域或气体、灰尘等物质扩散。如果扩散到的地方是气体或灰尘，则会在该位置生成新的火焰。
+// 与水的交互：如果火焰扩散到水的周围，火焰会熄灭。
+// 风的影响：风会对火焰的扩散产生影响，每次火焰更新时，都会设置风的压力和密度，模拟火焰受到风力的推动。
+// 随机性：火焰的扩散和降解具有很强的随机性，尤其是在与周围物质互动时，每次更新都会基于随机方向来决定火焰的行为。
+
 pub fn update_fire(cell: Cell, mut api: SandApi) {
+    // 1. 火焰降解
+    // 获取当前火焰细胞的 ra 值（表示火焰的强度或阶段）。
+    // 创建一个 degraded 变量，用来表示火焰的降解状态。降解是通过将当前的 ra 值减去一个随机值来实现的，
+    // api.rand_dir() 返回一个随机的方向值（可能是 -1、0、1），因此这个变化是有随机性的。
     let ra = cell.ra;
     let mut degraded = cell.clone();
     degraded.ra = ra - (2 + api.rand_dir()) as u8;
 
+    // 2. 随机选择一个方向进行扩散
+    // api.rand_vec() 返回一个随机的二维向量 (dx, dy)，用来表示火焰扩散的方向。
     let (dx, dy) = api.rand_vec();
 
+    // 3. 设置风力参数
+    // api.set_fluid() 设置风力的影响参数：
+    // dx: 0, dy: 150 表示风的方向是沿着 y 轴（向下）。
+    // pressure: 1 设置风的压力。
+    // density: 120 设置风的密度。
     api.set_fluid(Wind {
         dx: 0,
         dy: 150,
         pressure: 1,
         density: 120,
     });
+    // 4. 火焰与气体或灰尘的交互
+    // 如果火焰扩散到的地方是气体 (Species::Gas) 或灰尘 (Species::Dust)，则在该位置产生新的火焰细胞。
+    // 新的火焰细胞的 ra 值是一个计算结果 (150 + (dx + dy) * 10)，这个值是基于扩散的方向来设置的，意味着火焰会根据其扩散方向产生不同的强度。
+    // rb: 0 和 clock: 0 初始化火焰细胞的其他属性。
+    // 然后，再次设置风力参数，风的压力和密度有所增加。
     if api.get(dx, dy).species == Species::Gas || api.get(dx, dy).species == Species::Dust {
         api.set(
             dx,
@@ -636,6 +830,10 @@ pub fn update_fire(cell: Cell, mut api: SandApi) {
             density: 40,
         });
     }
+    // 5. 火焰与水或空白区域的交互
+    // 如果火焰的强度 ra 小于 5，或者扩散到的地方是水 (Species::Water)，则火焰会被熄灭（设置为空白细胞 EMPTY_CELL）。
+    // 如果扩散到的地方是空白 (Species::Empty)，则将当前火焰置为空白，并将降解后的火焰放置到新的位置。
+    // 如果扩散到的地方不是空白且也不是水，则将火焰的降解状态放置在当前位置。
     if ra < 5 || api.get(dx, dy).species == Species::Water {
         api.set(0, 0, EMPTY_CELL);
     } else if api.get(dx, dy).species == Species::Empty {
