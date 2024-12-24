@@ -24,7 +24,9 @@ npm run start;
 # then in a separate terminal:
 cargo watch -s 'wasm-pack build'
 ```
+运行后先执行 npm run start 再执行wasm-pack build
 
+processWasm.js 去除 借用校验  npm processWasm.js
 a successor to my previous efforts in [javascript](https://github.com/MaxBittker/dust) and [lua](https://github.com/MaxBittker/sand-toy)
 
 Fluid simulation code adopted from
