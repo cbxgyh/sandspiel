@@ -9,6 +9,7 @@ use std::mem;
 use wasm_bindgen::prelude::*;
 // use web_sys::console;
 
+// Species 枚举定义了在模拟中可以存在的不同物种，每个物种对应一个唯一的值。枚举值被标记为 u8 类型，表示每个物种在内存中的占用大小。这个枚举将决定每个 Cell 的物种类型，从而影响其行为和与其他细胞的交互。
 #[wasm_bindgen]
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -37,6 +38,7 @@ pub enum Species {
 }
 
 impl Species {
+    // Species::update 方法是一个分发器，根据不同的物种类型调用不同的更新函数。每个物种的行为是由其对应的 update_* 方法决定的。
     pub fn update(&self, cell: Cell, api: SandApi) {
         match self {
             Species::Empty => {}
@@ -65,7 +67,13 @@ impl Species {
         }
     }
 }
+// update_sand 方法处理沙子的行为。沙子会根据周围环境进行下落：
+//
+// 如果下方是空的，沙子会下落。
+// 如果旁边是空的，则沙子会向旁边移动。
+// 如果周围有水、气体、油或酸，沙子也会交换位置。
 
+// 沙子的更新逻辑是根据其周围的细胞状态来决定的。
 pub fn update_sand(cell: Cell, mut api: SandApi) {
     let dx = api.rand_dir_2();
 
@@ -88,6 +96,10 @@ pub fn update_sand(cell: Cell, mut api: SandApi) {
     }
 }
 
+// update_dust 方法描述了尘土的行为：
+//
+// 如果流体的压力大于 120，尘土会变为火，并生成一个风流体（Wind）。
+// 否则，尘土会与周围的空白或水的细胞交换位置，或者保持原位
 pub fn update_dust(cell: Cell, mut api: SandApi) {
     let dx = api.rand_dir();
     let fluid = api.get_fluid();
@@ -127,6 +139,11 @@ pub fn update_dust(cell: Cell, mut api: SandApi) {
     }
 }
 
+// update_stone 方法描述了石头的行为：
+//
+// 如果石头的两侧都有石头，石头不会移动。
+// 如果流体的压力大于 120，石头可能会变成沙子。
+// 否则，石头会尝试向下移动或与周围的细胞交换。
 pub fn update_stone(cell: Cell, mut api: SandApi) {
     if api.get(-1, -1).species == Species::Stone && api.get(1, -1).species == Species::Stone {
         return;

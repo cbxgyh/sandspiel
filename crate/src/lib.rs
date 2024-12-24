@@ -14,7 +14,11 @@ use species::Species;
 use std::collections::VecDeque;
 use wasm_bindgen::prelude::*;
 // use web_sys::console;
-
+// 风（Wind）和细胞（Cell）的数据结构以及 Universe（宇宙）的一部分实现
+// Wind 结构体表示风的特性，其中：
+//
+// dx 和 dy 分别表示风的水平和垂直方向的分量。这些数值通常会影响模拟中的细胞移动，或用于计算与其他细胞的相互作用。
+// pressure 和 density 可能用于表示风的强度和“浓度”，例如它影响哪些物种会被风吹动，或风是否可以推动某些细胞（例如沙子、火等）。
 #[wasm_bindgen]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -25,6 +29,12 @@ pub struct Wind {
     density: u8,
 }
 
+// Cell 代表了模拟中的一个单元，包含以下字段：
+//
+// species：细胞的物种类型（例如沙子、墙壁、植物等）。这些物种应该是通过一个 Species 枚举类型来表示的。
+// ra 和 rb：两个随机值，这些值可能用于控制细胞的随机属性（比如颜色、状态等）。
+// clock：可能表示细胞的“时间”或“版本”。它可以用来跟踪细胞的更新状态，例如细胞自上次更新以来的时间。
+// Cell 结构体同样通过 #[wasm_bindgen] 暴露给 JavaScript，并通过 #[repr(C)] 使其具有兼容 C 的内存布局，以便与 JavaScript 或其他 C 语言库进行交互。
 #[wasm_bindgen]
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,7 +44,9 @@ pub struct Cell {
     rb: u8,
     clock: u8,
 }
-
+// Cell 的方法：
+// new：这是一个构造函数，创建一个新的 Cell 实例。它会基于物种（species）和随机生成的数值来初始化 ra 和 rb 属性。
+// update：调用细胞的 species 更新方法来改变细胞的状态。这个方法通过 SandApi（API 代理）来执行物种的更新逻辑。
 impl Cell {
     pub fn new(species: Species) -> Cell {
         Cell {
@@ -49,13 +61,21 @@ impl Cell {
     }
 }
 
+// EMPTY_CELL 是一个代表空白细胞的常量，通常用于初始化或清空宇宙中的某个位置。它的物种类型是 Species::Empty，并且没有随机属性或时间戳。
 static EMPTY_CELL: Cell = Cell {
     species: Species::Empty,
     ra: 0,
     rb: 0,
     clock: 0,
 };
-
+// Universe 结构体代表了一个大的二维网格（宇宙），其中每个单元格都是一个 Cell。它包括以下字段：
+//
+// width 和 height：宇宙的尺寸（宽度和高度），决定了细胞的排列方式。
+// cells：一个 Vec<Cell>，用于存储宇宙中的所有细胞。
+// undo_stack：用于撤销操作的栈，保存了历史状态。这允许在模拟过程中回退到之前的状态。
+// winds 和 burns：分别表示宇宙中每个位置的风数据和烧伤状态。它们是与 Wind 类型相关的向量。
+// generation：宇宙当前的代数，通常用于追踪模拟的进度。
+// rng：SplitMix64 是一个伪随机数生成器，用于生成模拟中的随机事件。
 #[wasm_bindgen]
 pub struct Universe {
     width: i32,
