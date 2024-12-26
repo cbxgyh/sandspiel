@@ -844,15 +844,25 @@ pub fn update_fire(cell: Cell, mut api: SandApi) {
     }
 }
 
+// 模拟“岩浆”（Lava）在沙盒模拟程序中的行为。它涉及了岩浆与周围环境的交互、流动以及与其他物质的反应（例如与水、火等的反应）
 pub fn update_lava(cell: Cell, mut api: SandApi) {
+    //    1. 设置风力流体
+    // 这行代码设置了风的流动方向和一些物理属性。这里的 dx: 0, dy: 10 表示风的流动方向为向下（沿Y轴方向，单位可能是像素或格子单元）。
+    // pressure 为 0，表示风的压力较小，density: 60 是风的密度。
     api.set_fluid(Wind {
         dx: 0,
         dy: 10,
         pressure: 0,
         density: 60,
     });
+
+    // 2. 随机选择一个相邻格子并检查其物质类型
+    // 这行代码使用 api.rand_vec() 生成一个随机的方向 (dx, dy)，用来选择一个相邻格子进行操作。
     let (dx, dy) = api.rand_vec();
 
+    // 3. 与气体或灰尘交互
+    // 如果随机选择的格子是气体（Species::Gas）或灰尘（Species::Dust），则在该格子中生成一个火（Species::Fire）。
+    // 火的“活跃度”（ra）由 (150 + (dx + dy) * 10) 计算得到，rb 和 clock 则为 0。
     if api.get(dx, dy).species == Species::Gas || api.get(dx, dy).species == Species::Dust {
         api.set(
             dx,
@@ -865,6 +875,11 @@ pub fn update_lava(cell: Cell, mut api: SandApi) {
             },
         );
     }
+
+    // 4. 与水的交互
+    //  如果随机选择的格子是水（Species::Water），则岩浆与水发生反应，岩浆变成石头（Species::Stone），并将石头放置在当前格子。
+    // 同时，水被移除，设置为 EMPTY_CELL。
+    //
     let sample = api.get(dx, dy);
     if sample.species == Species::Water {
         api.set(
@@ -878,6 +893,12 @@ pub fn update_lava(cell: Cell, mut api: SandApi) {
             },
         );
         api.set(dx, dy, EMPTY_CELL);
+
+    //     5. 岩浆的移动
+    // 接下来，岩浆尝试向周围的空白格子（Species::Empty）移动。如果周围的格子是空的，它会向该格子移动，否则保持当前位置。
+    // 检查当前格子（0, 0）上下左右（0, 1、dx, 1、dx, 0）是否为空（Species::Empty）。
+    // 如果某个方向的格子为空，则岩浆会向该方向移动。
+    // 如果没有空格子可以移动，则岩浆保持在原位置。
     } else if api.get(0, 1).species == Species::Empty {
         api.set(0, 0, EMPTY_CELL);
         api.set(0, 1, cell);
@@ -892,12 +913,18 @@ pub fn update_lava(cell: Cell, mut api: SandApi) {
     }
 }
 
+// 模拟木材在沙盒模拟环境中的行为。木材的行为包括与火、熔岩、水等物质的互动，以及根据条件改变状态（如变为火或变为空）。
 pub fn update_wood(cell: Cell, mut api: SandApi) {
+    //
     let rb = cell.rb;
 
     let (dx, dy) = api.rand_vec();
 
     let nbr_species = api.get(dx, dy).species;
+
+    // 1. 初始化与火或熔岩交互
+    // 这段代码首先判断木材（Wood）是否处于初始状态（rb == 0）。如果是并且它周围的格子是火（Fire）或熔岩（Lava），则木材将变为状态 Wood，并且将其 rb 设置为 90。
+    // ra 和 clock 由原始木材的属性继承
     if rb == 0 && nbr_species == Species::Fire || nbr_species == Species::Lava {
         api.set(
             0,
@@ -911,6 +938,8 @@ pub fn update_wood(cell: Cell, mut api: SandApi) {
         );
     }
 
+    // 2. 如果木材的 rb 大于 1，则进行如下操作
+    // 如果木材的 rb 大于 1，木材的 rb 减 1，并保持木材的其他属性（species 和 ra）不变。
     if rb > 1 {
         api.set(
             0,
@@ -922,7 +951,8 @@ pub fn update_wood(cell: Cell, mut api: SandApi) {
                 clock: 0,
             },
         );
-
+        // 3. 木材和空白格子、火的互动
+        // 如果木材的 rb 是 4 的倍数并且相邻的格子为空（Species::Empty），则在该空格上生成一个火（Species::Fire）。火的 ra 是一个随机值，范围在 30 到 90 之间。
         if rb % 4 == 0 && nbr_species == Species::Empty {
             let ra = 30 + api.rand_int(60) as u8;
             api.set(
@@ -936,6 +966,9 @@ pub fn update_wood(cell: Cell, mut api: SandApi) {
                 },
             )
         }
+        // 4. 木材和水的互动
+        // 如果木材接触到水（Species::Water），则木材变成状态 Wood，并且 ra 设置为 50，rb 设置为 0。这种情况下，水可能会导致木材的某些改变，或者用风的模拟来表示水蒸气的作用。
+        // api.set_fluid() 设置了一个流体属性，虽然具体作用没有完全显示，但可能与风的物理行为（例如水蒸气或湿度）有关。
         if nbr_species == Species::Water {
             api.set(
                 0,
@@ -954,6 +987,9 @@ pub fn update_wood(cell: Cell, mut api: SandApi) {
                 density: 220,
             });
         }
+
+    //     5. 如果 rb 为 1，则变为空格
+    //     如果木材的 rb 为 1，则将其变为空格，并且 ra 设为原来木材的 ra，rb 设为 90，恢复为初始状态。
     } else if rb == 1 {
         api.set(
             0,
