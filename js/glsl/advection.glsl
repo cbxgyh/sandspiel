@@ -1,3 +1,7 @@
+// 模拟基于速度场的流体或气体的行为。在这段代码中，多个纹理和物理参数交互影响着最终的像素值。
+
+
+
 
 precision highp float;
 precision mediump sampler2D;
