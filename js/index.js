@@ -153,5 +153,5 @@ document.addEventListener("paste", function(event) {
   }
 });
 
-(adsbygoogle = window.adsbygoogle || []).push({});
+// (adsbygoogle = window.adsbygoogle || []).push({});
 export { canvas, width, height, universe, reset };

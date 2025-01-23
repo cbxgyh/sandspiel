@@ -43,6 +43,7 @@ function iOS() {
 }
 
 const isIOS = iOS();
+
 function startFluid({ universe }) {
   canvas.width = universe.width();
   canvas.height = universe.height();
@@ -61,6 +62,8 @@ function startFluid({ universe }) {
   let isWebGL2;
 
   const { gl, ext } = getWebGLContext(canvas);
+  console.log("**************ext")
+  console.log(ext)
   let {
     baseVertexShader,
     clearShader,
@@ -270,7 +273,7 @@ function startFluid({ universe }) {
         );
       }
     }
-    //
+    bind() {
     // 该方法使用 gl.useProgram(this.program) 激活并绑定当前的 WebGL 程序，这样在之后的 WebGL 渲染调用中将使用这个程序对象bind() {
       gl.useProgram(this.program);
     }
@@ -319,7 +322,8 @@ function startFluid({ universe }) {
   function initFramebuffers() {
     texWidth = gl.drawingBufferWidth >> config.TEXTURE_DOWNSAMPLE;
     texHeight = gl.drawingBufferHeight >> config.TEXTURE_DOWNSAMPLE;
-
+    console.log(ext)
+    console.log("**********************ext")
     const texType = ext.halfFloatTexType;
     const rgba = ext.formatRGBA;
     const rg = ext.formatRG;
